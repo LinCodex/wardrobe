@@ -17,16 +17,23 @@ test('Garment processing has the same access boundary and no fake result',async(
   assert.equal((await handle(request('/api/garments/render',{method:'POST'}),{},{})).status,401);
   assert.equal((await handle(request('/api/garments/render',{method:'POST',headers:{'oai-authenticated-user-id':'owner',origin}}),{},{})).status,503);
 });
-test('Private Vercel endpoints reject a forged platform identity',async()=>{
-  assert.equal((await handleVercel(request('/api?route=lucy/token',{method:'POST',headers:{'oai-authenticated-user-id':'forged',origin}}),{WARDROBE_PASSWORD:'test-only-password'})).status,401);
+test('Public Vercel endpoints still reject cross-origin requests',async()=>{
+  assert.equal((await handleVercel(request('/api?route=lucy/token',{method:'POST',headers:{'oai-authenticated-user-id':'forged',origin:'https://other.example'}}),{DECART_API_KEY:'server-test-key'})).status,403);
 });
-test('Vercel password exchange creates a signed, HttpOnly session',async()=>{
-  const env={WARDROBE_PASSWORD:'test-only-password'};
-  const denied=await handleVercel(request('/api/session',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify({password:'wrong'})}),env);assert.equal(denied.status,401);
-  const ok=await handleVercel(request('/api/session',{method:'POST',headers:{origin,'Content-Type':'application/json'},body:JSON.stringify({password:env.WARDROBE_PASSWORD})}),env);assert.equal(ok.status,200);
-  const cookie=ok.headers.get('set-cookie');assert.match(cookie,/HttpOnly/);assert.match(cookie,/Secure/);assert.match(cookie,/SameSite=Strict/);
-  assert.equal((await (await handleVercel(request('/api?route=lucy/status',{headers:{cookie}}),env)).json()).locked,false);
-  assert.equal((await (await handleVercel(request('/api?route=lucy/status',{headers:{cookie:cookie.replace('wardrobe_session=','wardrobe_session=x')}}),env)).json()).locked,true);
+test('Vercel mints a short-lived Lucy token without a password or cookie',async t=>{
+  t.mock.method(globalThis,'fetch',async(url,options)=>{
+    assert.equal(url,'https://api.decart.ai/v1/client/tokens');
+    assert.equal(options.headers['X-API-KEY'],'server-test-key');
+    const body=JSON.parse(options.body);assert.equal(body.expiresIn,60);assert.deepEqual(body.allowedOrigins,[origin]);
+    return Response.json({apiKey:'short-lived-test-token',expiresAt:12345});
+  });
+  const response=await handleVercel(request('/api?route=lucy/token',{method:'POST',headers:{origin}}),{DECART_API_KEY:'server-test-key'});
+  assert.equal(response.status,200);assert.equal(response.headers.get('set-cookie'),null);
+  const body=await response.json();assert.equal(body.apiKey,'short-lived-test-token');assert.equal(JSON.stringify(body).includes('server-test-key'),false);
+});
+test('The removed session route cannot create a login session',async()=>{
+  const response=await handleVercel(request('/api?route=session',{method:'POST',headers:{origin},body:'{}'}),{});
+  assert.equal(response.status,404);assert.equal(response.headers.get('set-cookie'),null);
 });
 test('Static assets have the correct type and unknown paths return 404',async()=>{
   const assets={'/index.html':{base64:btoa('<h1>Wardrobe</h1>'),type:'text/html'}};

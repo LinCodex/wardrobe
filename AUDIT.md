@@ -15,7 +15,7 @@ Verified locally on October 18, 2026, including a 390 × 844 phone viewport and 
 | Weather | Actual selected-city forecast rendered, including current/hourly/daily data and units. No seeded city ships with the project. |
 | Wardrobe flows | File selection/storage, custom menus, outfit creation, collections, planner, and packing checked through the UI. Audit-created items and boards were removed afterward; the user's upload and selected weather location were preserved. |
 | AI-disabled state | Original uploads remain saved without being presented as finished garment renders. |
-| Backend | 13 automated access/session/configuration/recognition/mask tests pass. Provider replies are fixtures in tests; live credentials were not used. |
+| Backend | 14 automated origin/configuration/token/recognition/mask tests pass. Provider replies are fixtures in tests; live credentials were not used. |
 | Vercel build | Verified from the packaged source structure without Sites metadata. |
 | Home weather card | Measured 356 px, matching the full content width on a 390 px phone. |
 | Closet viewport | No vertical document scroll at 390 × 844 or 375 × 667. Card ends 18 px above the dock. Desktop also fits the viewport. |
@@ -27,6 +27,6 @@ Verified locally on October 18, 2026, including a 390 × 844 phone viewport and 
 
 ## Deployment checks still required
 
-No provider credentials were supplied to the local test process. Real Gemini contour fidelity and live Lucy video have not been exercised against the providers. Verify after setting `GEMINI_API_KEY`, `WARDROBE_PASSWORD`, and `DECART_API_KEY` for Try-On on Vercel. See GEMINI_SETUP.md.
+No provider credentials were supplied to the local test process. Real Gemini contour fidelity and live Lucy video have not been exercised against the providers. Verify after setting `GEMINI_API_KEY` and `DECART_API_KEY` for Try-On on Vercel. See GEMINI_SETUP.md. No application password is required.
 
 The photo workflow now produces a transparent cutout of the original garment with a 2.5D tilt effect. It does not generate hidden fabric, an unseen back side, or a full 3D mesh. Storage is browser-local; moving domains requires exporting/restoring a backup.

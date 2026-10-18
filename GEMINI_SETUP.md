@@ -8,12 +8,11 @@ In Vercel's project environment variables, set:
 | --- | --- |
 | `GEMINI_API_KEY` | Your Gemini API key, stored as a server secret. |
 | `GEMINI_MODEL` | `gemini-3.8-flash` (also the default if omitted). |
-| `WARDROBE_PASSWORD` | A password you choose to unlock AI operations in your app. |
 | `DECART_API_KEY` | Your Decart key, for live Try-On. Cutouts do not require it. |
 
 Enable the variables for the deployment environment you use (Production, and Preview if testing preview URLs), then redeploy the latest GitHub commit. Environment changes apply to new deployments. Do not put provider keys into public/client environment variables or commit an `.env` file.
 
-The app asks for `WARDROBE_PASSWORD` when an AI operation needs unlocking. This is the password you chose above. Without it, the Vercel AI endpoints intentionally remain unavailable even if both provider keys exist. The status response now distinguishes this condition from a missing API key.
+The app connects directly using the configured provider keys. No wardrobe password, login screen or session cookie is required.
 
 ## Upload behavior
 

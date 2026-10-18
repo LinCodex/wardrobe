@@ -14,11 +14,11 @@ test('Gemini alone enables cutouts without enabling paid Lucy',async()=>{
   assert.equal(status.ready,true);assert.equal(status.mode,'cutout');assert.equal(status.renderReady,false);
   assert.equal((await (await handle(new Request(origin+'/api/lucy/status'),{GEMINI_API_KEY:'test-key'},{})).json()).ready,false);
 });
-test('Vercel status distinguishes missing wardrobe password from missing AI keys',async()=>{
+test('Vercel Gemini readiness depends only on the configured provider',async()=>{
   const response=await handleVercel(new Request(origin+'/api?route=garments/status'),{GEMINI_API_KEY:'test-key'}),body=await response.json();
-  assert.equal(body.ready,false);assert.equal(body.requiresPassword,true);assert.equal(body.recognitionReady,true);
-  const configured=await (await handleVercel(new Request(origin+'/api?route=garments/status'),{GEMINI_API_KEY:'test-key',WARDROBE_PASSWORD:'test-password'})).json();
-  assert.equal(configured.ready,true);assert.equal(configured.locked,true);
+  assert.equal(body.ready,true);assert.equal(body.recognitionReady,true);assert.equal(body.locked,undefined);assert.equal(body.requiresPassword,undefined);
+  const missing=await (await handleVercel(new Request(origin+'/api?route=garments/status'),{})).json();
+  assert.equal(missing.ready,false);
 });
 test('Cutout endpoint protects identity, origin, configuration and file type',async()=>{
   const noIdentity=input();noIdentity.headers.delete('oai-authenticated-user-id');
@@ -28,7 +28,7 @@ test('Cutout endpoint protects identity, origin, configuration and file type',as
   const body=new FormData();body.append('image',new Blob(['bad'],{type:'text/plain'}),'bad.txt');
   assert.equal((await handle(new Request(origin+'/api/garments/cutout',{method:'POST',headers:{origin,'oai-authenticated-user-id':'owner'},body}),{GEMINI_API_KEY:'test-key'},{})).status,400);
 });
-test('Recognition and outlines use one Gemini request with server-owned rules',async t=>{
+test('Public Vercel recognition uses one Gemini request without a session',async t=>{
   let calls=0;
   t.mock.method(globalThis,'fetch',async(url,options)=>{
     calls++;assert.match(url,/generativelanguage\.googleapis\.com/);
@@ -38,7 +38,8 @@ test('Recognition and outlines use one Gemini request with server-owned rules',a
     assert.equal(atob(body.input[1].data),'test-image');
     return Response.json({outputs:[{type:'text',text:JSON.stringify(result)}]});
   });
-  const response=await handle(input(),{GEMINI_API_KEY:'test-key'},{}),body=await response.json();
+  const publicRequest=input();publicRequest.headers.delete('oai-authenticated-user-id');
+  const response=await handleVercel(publicRequest,{GEMINI_API_KEY:'test-key'}),body=await response.json();
   assert.equal(response.status,200);assert.equal(calls,1);assert.equal(body.kind,'cutout');assert.deepEqual(body.segmentation,geometry);assert.equal(body.metadata.color,'White');
   assert.equal(JSON.stringify(body).includes('test-key'),false);
 });

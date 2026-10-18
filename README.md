@@ -25,12 +25,11 @@ Import this folder as a Vercel project. `vercel.json` configures the build, publ
 | --- | --- |
 | `DECART_API_KEY` | Lucy real-time Try-On. Optional for recognition and cutouts. |
 | `GEMINI_API_KEY` | Automatic recognition, naming, color, category and garment segmentation. |
-| `WARDROBE_PASSWORD` | Owner password protecting billable AI endpoints. Choose a strong, unique password. |
 | `GEMINI_MODEL` | Optional model override; default `gemini-3.8-flash`. |
 
 See [Gemini setup](GEMINI_SETUP.md) for the exact configuration and server prompt. A custom HTTPS recognition service can still be used through `GARMENT_RECOGNITION_URL` and optional `GARMENT_RECOGNITION_KEY`. For the cutout flow it receives multipart fields `image` and `task=cutout` and must return the structured garment and polygon fields defined in `worker/garment-prompt.js`.
 
-The first AI operation on Vercel asks for your wardrobe password. A signed HttpOnly cookie unlocks AI requests for 24 hours. Permanent provider keys stay on the server. Lucy receives short-lived tokens restricted to its model and your app's origin. Use Vercel Deployment Protection if you also want to restrict access to the app shell.
+AI operations connect without a password or sign-in. Permanent provider keys stay on the server. Lucy receives short-lived tokens restricted to its model and your app's origin. On a public deployment, visitors can use the configured AI services.
 
 ## Add a garment
 
