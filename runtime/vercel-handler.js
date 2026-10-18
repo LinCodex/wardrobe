@@ -22,7 +22,7 @@ export async function handleVercel(request,env){
   }
   const unlocked=await validSession(request,env.WARDROBE_PASSWORD);
   if(url.pathname.endsWith('/status')){
-    const response=await handle(new Request(url,{method:'GET'}),env,{});const body=await response.json();return json({...body,ready:body.ready&&!!env.WARDROBE_PASSWORD,locked:!!env.WARDROBE_PASSWORD&&!unlocked});
+    const response=await handle(new Request(url,{method:'GET'}),env,{});const body=await response.json();return json({...body,ready:body.ready&&!!env.WARDROBE_PASSWORD,requiresPassword:body.ready&&!env.WARDROBE_PASSWORD,locked:!!env.WARDROBE_PASSWORD&&!unlocked});
   }
   if(!unlocked)return json({error:'Unlock your wardrobe to continue.',code:'LOCKED'},401);
   const headers=new Headers(request.headers);headers.delete('oai-authenticated-user-id');headers.delete('oai-authenticated-user-email');headers.set('oai-authenticated-user-id','wardrobe-owner');

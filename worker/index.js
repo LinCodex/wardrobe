@@ -1,8 +1,21 @@
-import { recognize } from './recognition.js';
+import { recognize, RecognitionError } from './recognition.js';
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 export async function handle(request,env,assets){
   const url=new URL(request.url);
-  if(url.pathname==='/api/garments/status')return json({ready:!!env.DECART_API_KEY && !!(env.GEMINI_API_KEY || env.GARMENT_RECOGNITION_URL),recognitionReady:!!(env.GEMINI_API_KEY || env.GARMENT_RECOGNITION_URL)});
+  if(url.pathname==='/api/garments/status')return json({ready:!!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL),recognitionReady:!!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL),renderReady:!!env.DECART_API_KEY&&!!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL),mode:'cutout'});
+  if(url.pathname==='/api/garments/cutout'){
+    if(request.method!=='POST')return json({error:'Method not allowed'},405);
+    if(!request.headers.get('oai-authenticated-user-id'))return json({error:'Unlock your wardrobe to process garments.'},401);
+    if(request.headers.get('origin')!==url.origin)return json({error:'Origin not allowed'},403);
+    if(!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL))return json({error:'Connect Gemini to process this photo.',code:'NOT_CONFIGURED'},503);
+    if(Number(request.headers.get('content-length')||0)>16*1024*1024)return json({error:'Photo is too large.'},413);
+    try{
+      const input=await request.formData(),image=input.get('image');
+      if(!(image instanceof Blob)||!/^image\/(jpeg|png|webp)$/.test(image.type)||!image.size||image.size>15*1024*1024)return json({error:'Choose a garment photo under 15 MB.'},400);
+      const result=await recognize(image,env,{cutout:true});
+      return json({...result,kind:'cutout',version:1});
+    }catch(err){return err instanceof RecognitionError?json({error:err.message,code:err.code},err.status):json({error:'Processing was interrupted. Your original photo is saved.',code:'PROCESSING_FAILED'},502)}
+  }
   if(url.pathname==='/api/garments/render'){
     if(request.method!=='POST')return json({error:'Method not allowed'},405);
     if(!request.headers.get('oai-authenticated-user-id'))return json({error:'Sign in to process garments.'},401);

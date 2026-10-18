@@ -23,26 +23,26 @@ Import this folder as a Vercel project. `vercel.json` configures the build, publ
 
 | Variable | Purpose |
 | --- | --- |
-| `DECART_API_KEY` | Lucy garment extraction, product renders and real-time Try-On. |
-| `GEMINI_API_KEY` | Automatic garment recognition, naming, color and category. |
+| `DECART_API_KEY` | Lucy real-time Try-On. Optional for recognition and cutouts. |
+| `GEMINI_API_KEY` | Automatic recognition, naming, color, category and garment segmentation. |
 | `WARDROBE_PASSWORD` | Owner password protecting billable AI endpoints. Choose a strong, unique password. |
-| `GEMINI_MODEL` | Optional recognition model override; default `gemini-3.8-flash`. |
+| `GEMINI_MODEL` | Optional model override; default `gemini-3.8-flash`. |
 
-You can substitute your own recognition service with `GARMENT_RECOGNITION_URL` and optional `GARMENT_RECOGNITION_KEY`. It receives multipart field `image` and returns `{ "isGarment": true, "name": "…", "category": "Tops", "color": "…" }`. Valid categories are Tops, Bottoms, Outerwear, Dresses, Shoes, Accessories, Other. The endpoint must use HTTPS.
+See [Gemini setup](GEMINI_SETUP.md) for the exact configuration and server prompt. A custom HTTPS recognition service can still be used through `GARMENT_RECOGNITION_URL` and optional `GARMENT_RECOGNITION_KEY`. For the cutout flow it receives multipart fields `image` and `task=cutout` and must return the structured garment and polygon fields defined in `worker/garment-prompt.js`.
 
 The first AI operation on Vercel asks for your wardrobe password. A signed HttpOnly cookie unlocks AI requests for 24 hours. Permanent provider keys stay on the server. Lucy receives short-lived tokens restricted to its model and your app's origin. Use Vercel Deployment Protection if you also want to restrict access to the app shell.
 
 ## Add a garment
 
-Choose Add a piece from the dock, then select a photo. There is no required details form. The app saves the source, recognizes the main garment, asks Lucy Image to isolate and render it, removes connected white background pixels, and stores the result. Drag gently to pan/tilt the garment. Swipe farther or use dots to switch pieces.
+Choose Add a piece from the dock, then select a photo. There is no required details form. The app saves the source, asks Gemini to identify and outline the main garment in one request, then cuts those original pixels into a transparent PNG in the browser. Name, category, color and pattern are filled automatically. Garment processing does not call Decart or require a paid image-generation model. Drag gently to tilt the cutout. Swipe farther or use dots to switch pieces.
 
-This is a lightweight **2.5D garment render**, using one rendered viewpoint and inertial tilt. It is not a reconstructed mesh or an accurate 360° scan of unseen surfaces. A genuine GLB model can optionally be attached through garment options for full rotation and zoom.
+This is a lightweight **2.5D garment preview**, using the original visible fabric and inertial tilt. It does not invent a product image, reconstruct covered areas or provide an accurate 360° scan. A genuine GLB model can optionally be attached through garment options for full rotation and zoom. Existing generated renders remain supported.
 
-Without configured credentials, photos remain saved in a clear waiting state. The app never displays an original screenshot as a finished garment render. Pending processing resumes on opening the app with its services configured. Failed jobs can be retried. Output fidelity depends on the source and provider; live AI results must be verified with your credentials after deployment.
+Without configured credentials, photos remain saved in a clear waiting state. An original screenshot is never presented as a finished cutout. Pending processing resumes when the app opens with its services configured. Low-confidence recognition, invalid masks and provider quota errors retain the original and show a retry state. Fine mask edges and difficult occlusions still depend on Gemini's output; verify representative photos after deploying your key.
 
 ## Try-On
 
-Try-On lives in the central Add menu, not on individual garments. Choose a processed garment and start Lucy. This sends your camera and selected garment to Decart. Leaving the page disconnects the session. Capture downloads the actual returned video frame. There is no fake AR result or invented fit score.
+Try-On lives in the central Add menu, not on individual garments. Its mobile screen keeps the garment picker and Start button above the dock. It can use a saved original reference photo before recognition finishes; a cutout is preferred when available. Starting sends your camera and selected garment to Decart. Camera access needs HTTPS (or localhost for development). Leaving the page disconnects the session. Capture downloads the actual returned video frame. There is no fake AR result or invented fit score.
 
 ## Storage
 
@@ -61,7 +61,7 @@ Motion follows the [Animate UI skill](https://github.com/imskyleen/animate-ui/tr
 Choose a city or use your location in Weather. City search and forecasts come from [Open-Meteo](https://open-meteo.com/); no weather key is needed for personal use under its service terms. Current conditions, hourly/day forecasts, temperature units, and sunset/humidity/wind use actual returned data. Browser location is requested only when you press Use my location; coordinates from that flow are rounded before saving and requesting the forecast. The last forecast is cached locally. Location is not inferred from your timezone.
 
 ```sh
-node --test scripts/backend.test.mjs
+node --test scripts/backend.test.mjs scripts/garment.test.mjs
 npm run build
 ```
 
