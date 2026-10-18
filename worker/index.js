@@ -1,12 +1,24 @@
 import { recognize, RecognitionError } from './recognition.js';
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
+function isAllowedOrigin(request,url){
+  const origin=request.headers.get('origin');
+  if(!origin)return true;
+  try{
+    const originUrl=new URL(origin);
+    const host=request.headers.get('x-forwarded-host')||request.headers.get('host')||url.host;
+    if(originUrl.host===host||originUrl.host===url.host)return true;
+    if(originUrl.origin===url.origin)return true;
+    if(['localhost','127.0.0.1'].includes(originUrl.hostname)&&['localhost','127.0.0.1'].includes(url.hostname))return true;
+    return false;
+  }catch{return false}
+}
 export async function handle(request,env,assets){
   const url=new URL(request.url);
   if(url.pathname==='/api/garments/status')return json({ready:!!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL),recognitionReady:!!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL),renderReady:!!env.DECART_API_KEY&&!!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL),mode:'cutout'});
   if(url.pathname==='/api/garments/cutout'){
     if(request.method!=='POST')return json({error:'Method not allowed'},405);
     if(!request.headers.get('oai-authenticated-user-id'))return json({error:'Unlock your wardrobe to process garments.'},401);
-    if(request.headers.get('origin')!==url.origin)return json({error:'Origin not allowed'},403);
+    if(!isAllowedOrigin(request,url))return json({error:'Origin not allowed'},403);
     if(!(env.GEMINI_API_KEY||env.GARMENT_RECOGNITION_URL))return json({error:'Connect Gemini to process this photo.',code:'NOT_CONFIGURED'},503);
     if(Number(request.headers.get('content-length')||0)>16*1024*1024)return json({error:'Photo is too large.'},413);
     try{
@@ -19,7 +31,7 @@ export async function handle(request,env,assets){
   if(url.pathname==='/api/garments/render'){
     if(request.method!=='POST')return json({error:'Method not allowed'},405);
     if(!request.headers.get('oai-authenticated-user-id'))return json({error:'Sign in to process garments.'},401);
-    if(request.headers.get('origin')!==url.origin)return json({error:'Origin not allowed'},403);
+    if(!isAllowedOrigin(request,url))return json({error:'Origin not allowed'},403);
     if(!env.DECART_API_KEY || !(env.GEMINI_API_KEY || env.GARMENT_RECOGNITION_URL))return json({error:'Garment processing is not connected.',code:'NOT_CONFIGURED'},503);
     if(Number(request.headers.get('content-length')||0)>16*1024*1024)return json({error:'Photo is too large.'},413);
     try{
@@ -37,15 +49,21 @@ export async function handle(request,env,assets){
   if(url.pathname==='/api/lucy/token'){
     if(request.method!=='POST')return json({error:'Method not allowed'},405);
     if(!request.headers.get('oai-authenticated-user-id'))return json({error:'Sign in to use Try-On.'},401);
-    if(request.headers.get('origin')!==url.origin)return json({error:'Origin not allowed'},403);
-    if(!env.DECART_API_KEY)return json({error:'Lucy is not configured.'},503);
+    if(!isAllowedOrigin(request,url))return json({error:'Origin not allowed'},403);
+    if(!env.DECART_API_KEY)return json({error:'Lucy is not configured.',code:'NOT_CONFIGURED'},503);
     try{
+      const clientOrigin=request.headers.get('origin')||url.origin;
       const upstream=await fetch('https://api.decart.ai/v1/client/tokens',{
         method:'POST',headers:{'X-API-KEY':env.DECART_API_KEY,'Content-Type':'application/json'},
-        body:JSON.stringify({expiresIn:60,allowedModels:['lucy-vton-latest','lucy-vton-3.6'],allowedOrigins:[url.origin]}),
+        body:JSON.stringify({expiresIn:60,allowedModels:['lucy-vton-latest','lucy-vton-3.6','lucy-vton'],allowedOrigins:[clientOrigin]}),
         signal:AbortSignal.timeout(15000)
       });
-      if(!upstream.ok)return json({error:'Lucy could not create a session.'},502);
+      if(!upstream.ok){
+        let upstreamErr='';
+        try{const errJson=await upstream.json();upstreamErr=errJson.message||errJson.error||''}catch{}
+        if([401,403].includes(upstream.status))return json({error:'Decart API key is invalid or unauthorized. Check DECART_API_KEY.',code:'INVALID_DECART_KEY'},502);
+        return json({error:`Lucy session creation failed: ${upstreamErr||upstream.statusText}`,code:'DECART_ERROR'},502);
+      }
       const token=await upstream.json();
       if(typeof token.apiKey!=='string'||token.apiKey===env.DECART_API_KEY)return json({error:'Invalid session credential.'},502);
       return json({apiKey:token.apiKey,expiresAt:token.expiresAt});
