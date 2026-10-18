@@ -1,0 +1,1 @@
+{"name":"wardrobe","version":"2.0.0","private":true,"type":"module","scripts":{"build":"node scripts/build.mjs","dev":"node scripts/serve.mjs"},"dependencies":{"@decartai/sdk":"0.2.12"},"devDependencies":{"esbuild":"^0.25.0"}}

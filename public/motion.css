@@ -1,0 +1,73 @@
+/* Animate UI's plain-markup path: shared tween tokens, press/menu/modal recipes.
+   CSS adaptation keeps this app framework-free. Surfaces use a subtle .96 scale. */
+:root{--motion-out:cubic-bezier(.23,1,.32,1);--motion-soft:cubic-bezier(.215,.61,.355,1);--motion-away:cubic-bezier(.33,.17,.67,.5);--motion-menu:220ms var(--motion-soft);--motion-reveal:300ms var(--motion-out);--motion-overlay:400ms var(--motion-soft);--motion-dismiss:200ms var(--motion-away);--motion-press:150ms var(--motion-out)}
+.screen-enter{animation:ui-reveal var(--motion-reveal)}
+@keyframes ui-reveal{from{opacity:0}to{opacity:1}}
+button{transition:background-color 200ms ease,color 200ms ease,box-shadow 200ms ease,transform var(--motion-press)}
+button:active{transform:scale(.97)}
+.home-link:active,.profile-tile:active,.piece-mini:active,.settings-row:active{transform:scale(.985)}
+.bottom-nav>button:active{transform:scale(.97)}
+.select-trigger>.icon{transition:transform var(--motion-menu)}
+.select-trigger[aria-expanded="true"]>.icon{transform:rotate(90deg)}
+.select-options,.date-options{animation:none;transform-origin:top center;transition:opacity var(--motion-menu),transform var(--motion-menu),filter var(--motion-menu),display 220ms allow-discrete}
+.select-options:not([hidden]),.date-options:not([hidden]){opacity:1;transform:none;filter:none}
+.select-options[hidden],.date-options[hidden]{opacity:0;transform:scale(.9);filter:blur(2px)}
+@starting-style{.select-options:not([hidden]),.date-options:not([hidden]){opacity:0;transform:scale(.9);filter:blur(2px)}}
+.scrim{animation:ui-backdrop var(--motion-overlay)}
+.modal{animation:ui-surface 400ms var(--motion-soft);transform-origin:center;will-change:auto}
+@keyframes ui-backdrop{from{background-color:transparent;backdrop-filter:blur(0) saturate(1)}to{background-color:#34496630;backdrop-filter:blur(16px) saturate(1.1)}}
+@keyframes ui-surface{from{opacity:0;transform:scale(.96);filter:blur(4px)}to{opacity:1;transform:none;filter:none}}
+.scrim.closing{pointer-events:none;animation:ui-backdrop-out var(--motion-overlay) forwards}
+.scrim.closing .modal{animation:ui-surface-out var(--motion-dismiss) forwards}
+@keyframes ui-backdrop-out{to{background-color:transparent;backdrop-filter:blur(0) saturate(1)}}
+@keyframes ui-surface-out{to{opacity:0;transform:scale(.96);filter:blur(4px)}}
+.stat .custom-symbol{position:static;width:46px;height:46px;margin:-4px 0 6px -5px;background:none;box-shadow:none;border-radius:0}
+.stat:nth-child(n) .custom-symbol{background:none;box-shadow:none}
+.stat .stat-art{width:46px;height:46px;overflow:visible;filter:drop-shadow(0 3px 4px #6d87b11a)}
+.stat:has(.custom-symbol){min-height:140px;padding-top:17px}
+.stat-art-object{transform-origin:24px 27px;transition:transform var(--motion-menu)}
+@media(hover:hover) and (pointer:fine){.stat:hover .stat-art-object{transform:translateY(-2px) rotate(-3deg)}}
+.motion-paused,.motion-paused *{animation-play-state:paused!important}
+/* The closet is a viewport, with the preview taking all remaining space. */
+body:has(.page-closet),body:has(.page-viewer){overflow:hidden;overscroll-behavior:none}
+:is(.page-closet,.page-viewer){height:100dvh;min-height:0;overflow:hidden}
+:is(.page-closet,.page-viewer) .workspace{height:100dvh;min-height:0;display:flex;flex-direction:column;margin:0 auto;padding-bottom:30px}
+:is(.page-closet,.page-viewer) .topbar{flex:none}
+:is(.page-closet,.page-viewer) #view{display:flex;flex:1;min-height:0;flex-direction:column;animation:none}
+:is(.page-closet,.page-viewer) :is(.greeting,.toolbar,.pills){flex:none}
+:is(.page-closet,.page-viewer) .garment-card{flex:1;min-height:0;max-height:100%;overflow:hidden}
+:is(.page-closet,.page-viewer) .garment-visual{min-height:0;height:100%;overflow:hidden}
+:is(.page-closet,.page-viewer) .garment-card .garment-stage{height:100%;min-height:0}
+:is(.page-closet,.page-viewer) .garment-stage>.empty-state{min-height:0;max-height:100%;padding:20px}
+:is(.page-closet,.page-viewer) .garment-stage .empty-state>.scene{flex-shrink:1;min-height:30px;max-height:35%}
+:is(.page-closet,.page-viewer) .slide-content{height:100%;min-height:0}
+:is(.page-closet,.page-viewer) .garment-info{min-height:0;overscroll-behavior:contain}
+@media(max-width:900px){
+ :is(.page-closet,.page-viewer) .garment-card{display:flex;flex-direction:column}
+ :is(.page-closet,.page-viewer) .garment-visual{flex:1;height:auto}
+ :is(.page-closet,.page-viewer) .garment-info{flex:none}
+ :is(.page-closet,.page-viewer) .garment-card:has(.inline-edit){min-height:0}
+ .inline-edit .select-options{transform-origin:bottom center}
+}
+@media(max-width:700px){
+ :is(.page-closet,.page-viewer) .workspace{padding-bottom:calc(100px + env(safe-area-inset-bottom))}
+ :is(.page-closet,.page-viewer) .garment-visual{min-height:0}
+ :is(.page-closet,.page-viewer) .garment-card .garment-stage{height:100%}
+ :is(.page-closet,.page-viewer) .garment-card .garment-info{padding:17px 21px 19px}
+ .stat:has(.custom-symbol){min-height:127px;padding-top:13px}
+ .stat .custom-symbol,.stat .stat-art{width:42px;height:42px}
+ .stat .custom-symbol{margin:-3px 0 3px -5px}
+}
+@media(max-height:640px){
+ :is(.page-closet,.page-viewer) .garment-card:has(.inline-edit) .garment-info{overflow:auto;max-height:70%}
+ .inline-edit .select-options{position:relative!important;top:auto!important;bottom:auto;left:0!important;margin-top:6px;max-height:120px;transform-origin:top center}
+ :is(.page-closet,.page-viewer) .garment-stage .empty-state>.scene{display:none}
+ :is(.page-closet,.page-viewer) .garment-stage .empty-state{padding:10px 15px}
+ :is(.page-closet,.page-viewer) .garment-stage .empty-state h2{font-size:18px}
+ :is(.page-closet,.page-viewer) .garment-stage .empty-state p{font-size:10px;margin-top:6px}
+}
+@media(prefers-reduced-motion:reduce){
+ .screen-enter,.scrim,.modal,.scrim.closing,.scrim.closing .modal{animation:none!important}
+ button:active,.bottom-nav>button:active,.stat:hover .stat-art-object{transform:none!important}
+ .select-options,.date-options{transition:none!important}
+}
