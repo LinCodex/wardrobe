@@ -50,7 +50,7 @@ function packing(){const t=data.trips.find(t=>t.id===selectedTrip)||data.trips[0
 function insights(){const counts=cats.map(c=>[c,data.items.filter(i=>i.category===c).length]);const colors={};for(const i of data.items)if(i.color)colors[i.color]=(colors[i.color]||0)+1;return heading('Insights','Your wardrobe, at a glance.')+`<div class="insight-cards">${stat(data.items.length,'Pieces')}${stat(data.outfits.length,'Looks')}${stat(data.favorites.length,'Favorites')}${stat(data.items.filter(i=>i.modelKey).length,'3D models')}</div>${!data.items.length?`<div class="glass">${empty('The story starts with your closet.','Add your pieces to see your wardrobe take shape.','upload','Add a piece','chart')}</div>`:`<div class="split"><div class="chart-card glass">${section('By Category')}<div class="real-bars">${counts.filter(([,n])=>n).map(([c,n])=>`<div><span>${c}</span><div><i style="width:${n/data.items.length*100}%"></i></div><strong>${n}</strong></div>`).join('')}</div></div><div class="chart-card glass">${section('Your Colors')}<div class="real-colors">${Object.entries(colors).map(([c,n])=>`<div><span>${esc(c)}</span><strong>${n} ${n===1?'piece':'pieces'}</strong></div>`).join('')||'<p class="muted small">Add a color in your garment details to see your palette here.</p>'}</div></div></div>`}`}
 function profile(){return `<div class="profile-card glass"><div class="profile-header"><span class="avatar">${icon('profile')}</span><div><h2>${esc(data.profile.name||'Your Wardrobe')}</h2><p>${esc(data.profile.email||'A little more personal.')}</p></div>${round('edit','edit-profile','Edit profile')}</div><div class="insight-cards">${stat(data.items.length,'Pieces')}${stat(data.outfits.length,'Looks')}${stat(data.collections.length,'Collections')}${stat(data.trips.length,'Trips')}</div>${[['grid','Explore your wardrobe','Your pieces, plans, and collections','navigation'],['sparkle','Style preferences',data.styles.length?data.styles.join(', '):'Find the styles that feel like you','styles'],['profile','Body profile','Your own sizing notes','body'],['cloud','Backup & restore','Stored on this device','backup'],['help','A little guidance','Make yourself at home','help']].map(([ic,t,s,a])=>`<button class="settings-row ${a==='navigation'?'mobile-only':''}" data-action="${a}">${icon(ic)}<div><h3>${esc(t)}</h3><p>${esc(s)}</p></div>${icon('chevron')}</button>`).join('')}</div>`}
 const views={home,closet,viewer:()=>closet(true),outfits,look,collections,planner,packing,insights,profile,tryon:()=>lucyView(),permission:()=>lucyView(),welcome:home,saved:outfits,compare:outfits};
-function render(options={}){if(!views[page])page='home';const existing=app.querySelector('.layout'),same=existing?.classList.contains('page-'+page),oldVideo=same&&page==='tryon'?document.querySelector('#camera-video'):null;const content=views[page]();if(same){document.querySelector('#view').innerHTML=content;document.querySelectorAll('.nav-item .badge').forEach(el=>el.textContent=data.items.length)}else app.innerHTML=shell(content);if(options.instant)document.querySelector('.slide-content')?.style.setProperty('animation','none');document.title=`${titles[page]||'Wardrobe'} · Wardrobe`;if((remoteStream||stream)&&page==='tryon'){let v=document.querySelector('#camera-video');if(v){if(oldVideo){v.replaceWith(oldVideo);v=oldVideo}if(v.srcObject!==(remoteStream||stream)){v.srcObject=remoteStream||stream;v.play().catch(()=>{})}}}bindStage();if(matchMedia('(prefers-reduced-motion: reduce)').matches)document.querySelector('model-viewer')?.removeAttribute('auto-rotate');document.querySelector('model-viewer')?.addEventListener('error',()=>toast('This model could not be rendered. Try a valid, self-contained GLB file.'))}
+function render(options={}){if(!views[page])page='home';const existing=app.querySelector('.layout'),same=existing?.classList.contains('page-'+page);if(same&&page==='tryon'&&stream&&document.querySelector('#camera-video')){updateFittingRoomState();document.querySelectorAll('.nav-item .badge').forEach(el=>el.textContent=data.items.length);document.title=`${titles[page]||'Wardrobe'} · Wardrobe`;return}const content=views[page]();if(same){document.querySelector('#view').innerHTML=content;document.querySelectorAll('.nav-item .badge').forEach(el=>el.textContent=data.items.length)}else app.innerHTML=shell(content);if(options.instant)document.querySelector('.slide-content')?.style.setProperty('animation','none');document.title=`${titles[page]||'Wardrobe'} · Wardrobe`;bindFittingRoomStreams();bindStage();if(matchMedia('(prefers-reduced-motion: reduce)').matches)document.querySelector('model-viewer')?.removeAttribute('auto-rotate');document.querySelector('model-viewer')?.addEventListener('error',()=>toast('This model could not be rendered. Try a valid, self-contained GLB file.'))}
 function go(p){editingItem=false;closeModal();if(p!=='tryon')stopCamera();page=p;query='';category='All';onlyFavorites=false;selectedCollection='';location.hash=p;render();window.scrollTo({top:0,behavior:'instant'})}
 function toast(s){const el=document.querySelector('#toast');el.textContent=s;el.classList.add('show');clearTimeout(toast.timer);toast.timer=setTimeout(()=>el.classList.remove('show'),3400)}
 function modal(title,body){overlay.innerHTML=`<div class="scrim"><section class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-top"><h2>${esc(title)}</h2>${round('close','close-modal','Close dialog')}</div>${body}</section></div>`;overlay.querySelector('input:not([type=hidden]):not([type=file]),textarea,button')?.focus()}
@@ -69,15 +69,223 @@ let stopTilt=null;
 function bindStage(){stopTilt?.();stopTilt=null;const stage=document.querySelector('#garment-stage'),img=document.querySelector('.garment-photo');if(!stage)return;if(stage.querySelector('model-viewer'))loadModelViewer();if(!img)return;let down=false,startX=0,startY=0,lastX=0,target=0,angle=0,velocity=0,frame=0,last=performance.now();const reduced=matchMedia('(prefers-reduced-motion: reduce)').matches;const tick=now=>{const dt=Math.min((now-last)/16.67,2);last=now;if(!down){target*=Math.pow(.956,dt)}angle+=(target-angle)*(reduced?.4:.07)*dt;img.style.transform=`perspective(1000px) rotateY(${angle}deg) rotateZ(${-angle*.06}deg) translateY(${-Math.abs(angle)*.025}px)`;img.style.filter=`drop-shadow(${-angle*.55}px 25px 24px #52688430)`;if(Math.abs(angle)>.025||down||Math.abs(target)>.025)frame=requestAnimationFrame(tick);else frame=0};stage.addEventListener('pointerdown',e=>{if(e.target.closest('button'))return;down=true;startX=lastX=e.clientX;startY=e.clientY;velocity=0;img.classList.add('dragging');stage.setPointerCapture(e.pointerId);if(!frame){last=performance.now();frame=requestAnimationFrame(tick)}});stage.addEventListener('pointermove',e=>{if(!down)return;const dx=e.clientX-lastX;velocity=dx;target=Math.max(-28,Math.min(28,target+dx*.18));lastX=e.clientX});const release=e=>{if(!down)return;down=false;img.classList.remove('dragging');const dx=e.clientX-startX,dy=e.clientY-startY;if(Math.abs(dx)>100&&Math.abs(dx)>Math.abs(dy)*1.5&&filtered().length>1){moveSlide(dx<0?1:-1)}else target=Math.max(-28,Math.min(28,target+velocity*.6))};stage.addEventListener('pointerup',release);stage.addEventListener('pointercancel',()=>{down=false;target=0});stopTilt=()=>{cancelAnimationFrame(frame)}}
 function moveSlide(n){editingItem=false;const list=filtered();if(list.length<2)return;slideDirection=n<0?'prev':'next';slide=(slide+n+list.length)%list.length;selected=list[slide].id;render()}
 let lucySession=null,remoteStream=null,lucyConnecting=false,lucyStatus='idle',sessionAttempt=0;
-function stopCamera(){sessionAttempt++;const active=lucySession;lucySession=null;active?.disconnect();stream?.getTracks().forEach(t=>t.stop());stream=null;remoteStream?.getTracks().forEach(t=>t.stop());remoteStream=null;lucyConnecting=false;lucyStatus='idle'}
-async function startLucy(){if(lucyConnecting||lucySession)return;const i=itemBy(cameraItem)||data.items.find(i=>tryOnPhoto(i));if(!i||!tryOnPhoto(i)){toast('Add a garment photo to try it on.');return}lucyConnecting=true;lucyStatus='connecting';const attempt=++sessionAttempt;render();try{const status=await fetch('/api/lucy/status').then(r=>r.json());if(attempt!==sessionAttempt||page!=='tryon')return;if(!status.ready){lucyConnecting=false;lucyStatus='idle';render();modal('Finish connecting Try-On.',`<p>Add the server’s <code>DECART_API_KEY</code> to connect Lucy.</p><p class="asset-note">Your camera stays off until the connection is ready.</p>${btn('Back to wardrobe','exit-camera','primary')}`);return}if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera access needs HTTPS or localhost. Open the secure app address.');const {createDecartClient,models}=await import('./vendor/lucy.js');const m=models.realtime('lucy-vton-latest');const fpsVal=typeof m.fps==='number'?m.fps:(m.fps?.ideal||m.fps?.max||30);const videoConstraints={facingMode:'user',...(m.width?{width:{ideal:m.width}}:{}),...(m.height?{height:{ideal:m.height}}:{}),frameRate:{ideal:fpsVal}};try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:videoConstraints})}catch{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:'user'}})}if(page!=='tryon'){stopCamera();return}const client=createDecartClient({apiKeyProvider:async()=>{const res=await fetch('/api/lucy/token',{method:'POST',headers:{'Content-Type':'application/json'}});if(!res.ok){const errData=await res.json().catch(()=>({}));throw Error(errData.error||'Lucy could not connect. Check the server connection.')}const token=await res.json();return token.apiKey}});const connected=await client.realtime.connect(stream,{model:m,mirror:'auto',onRemoteStream:s=>{if(attempt!==sessionAttempt||page!=='tryon'){s.getTracks().forEach(t=>t.stop());return}remoteStream=s;lucyStatus='live';lucyConnecting=false;render()},onConnectionChange:s=>{if(s==='connected'||s==='generating'){lucyStatus='live';lucyConnecting=false;render()}else if(s==='disconnected'){stopCamera();if(page==='tryon')render()}}});if(attempt!==sessionAttempt||page!=='tryon'){connected.disconnect();return}lucySession=connected;lucySession.on?.('error',err=>{console.error('Lucy error:',err);toast('Lucy’s connection was interrupted. Please reconnect.');stopCamera();render()});lucySession.on?.('connectionChange',s=>{if(s==='connected'||s==='generating'){lucyStatus='live';lucyConnecting=false;render()}else if(s==='disconnected'){stopCamera();if(page==='tryon')render()}});try{await applyGarment()}catch(gErr){console.warn('Initial garment apply warning:',gErr)}lucyConnecting=false;if(!remoteStream&&lucyStatus!=='live')lucyStatus='waiting';render()}catch(err){if(attempt!==sessionAttempt)return;stopCamera();render();toast(err.name==='NotAllowedError'?'Camera access was declined. Allow it in your browser settings to try again.':err.message||'Lucy could not connect. Please try again.')}}
-async function applyGarment(){if(!lucySession)return;const i=itemBy(cameraItem),blob=i&&await getBlob(i.renderKey||i.photoKey||i.sourceKey);if(!blob)return;const kind={Tops:'top',Bottoms:'bottoms',Outerwear:'outerwear',Dresses:'dress',Shoes:'shoes',Accessories:'accessory'}[i.category]||'garment';const description=[i.color,i.name].filter(Boolean).join(' ');await lucySession.set({prompt:i.category==='Accessories'?`Add the ${description} ${kind} from the reference image.`:`Substitute the current ${kind} with the ${description} from the reference image.`,image:new File([blob],blob.type==='image/png'?'garment.png':'garment.webp',{type:blob.type}),enhance:false})}
-
-async function capture(){const video=document.querySelector('#camera-video');if(!remoteStream||!video?.videoWidth){toast('Start Try-On before capturing a look.');return}const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);const blob=await new Promise(r=>c.toBlob(r,'image/png'));const url=URL.createObjectURL(blob);modal('A look, made yours.',`<img src="${url}" alt="Your Lucy try-on capture" style="width:100%;max-height:55vh;object-fit:contain;border-radius:18px"><a class="primary" href="${url}" download="wardrobe-look.png" style="text-decoration:none">Save photo ${icon('download')}</a>`)}
+function bindFittingRoomStreams(){
+  if(page!=='tryon')return;
+  const localVideo=document.querySelector('#camera-video'),remoteVideo=document.querySelector('#remote-video');
+  if(localVideo&&stream&&localVideo.srcObject!==stream){
+    localVideo.srcObject=stream;
+    localVideo.muted=true;
+    localVideo.play().catch(()=>{});
+  }
+  if(remoteVideo&&remoteStream&&remoteVideo.srcObject!==remoteStream){
+    remoteVideo.srcObject=remoteStream;
+    remoteVideo.muted=true;
+    attachRemoteVideoListeners(remoteVideo);
+    remoteVideo.play().catch(()=>{});
+  }
+}
+function attachRemoteVideoListeners(rv){
+  if(!rv)return;
+  const onFrame=()=>{
+    if(rv.videoWidth>0&&!rv.paused){
+      rv.classList.add('active');
+      lucyStatus='live';
+      lucyConnecting=false;
+      updateFittingRoomState();
+    }
+  };
+  rv.onloadedmetadata=onFrame;
+  rv.onplaying=onFrame;
+  rv.ontimeupdate=()=>{if(rv.currentTime>0)onFrame()};
+}
+function updateFittingRoomState(){
+  if(page!=='tryon')return;
+  const live=lucyStatus==='live';
+  const label=document.querySelector('.camera-label');
+  if(label){
+    label.className='camera-label '+(live?'live':'connecting');
+    label.innerHTML=`<i></i>${live?'LUCY · LIVE':lucyConnecting?'CONNECTING…':'STYLING…'}`;
+  }
+  const badge=document.querySelector('.lucy-status');
+  if(badge){
+    badge.className='lucy-status '+(live?'live':'');
+    badge.innerHTML=`<i></i>${live?'Connected':lucyConnecting?'Connecting':'POWERED BY LUCY'}`;
+  }
+  const shutter=document.querySelector('.shutter');
+  if(shutter)shutter.style.display=stream?'block':'none';
+}
+function selectFittingRoomGarment(id){
+  cameraItem=id;
+  document.querySelectorAll('.camera-pieces button').forEach(b=>{
+    const isAct=b.dataset.cameraItem===id;
+    b.classList.toggle('active',isAct);
+    b.setAttribute('aria-pressed',isAct);
+  });
+  const nameEl=document.querySelector('.camera-piece-name');
+  if(nameEl)nameEl.textContent=itemBy(cameraItem)?.name||'Choose a garment';
+  const label=document.querySelector('.camera-label');
+  if(label&&lucyStatus==='live'){
+    label.className='camera-label connecting';
+    label.innerHTML=`<i></i>STYLING…`;
+  }
+}
+function stopCamera(){
+  sessionAttempt++;
+  const active=lucySession;
+  lucySession=null;
+  active?.disconnect();
+  stream?.getTracks().forEach(t=>t.stop());
+  stream=null;
+  remoteStream?.getTracks().forEach(t=>t.stop());
+  remoteStream=null;
+  lucyConnecting=false;
+  lucyStatus='idle';
+  const remoteVideo=document.querySelector('#remote-video');
+  if(remoteVideo){
+    remoteVideo.classList.remove('active');
+    remoteVideo.srcObject=null;
+  }
+  const localVideo=document.querySelector('#camera-video');
+  if(localVideo)localVideo.srcObject=null;
+}
+async function startLucy(){
+  if(lucyConnecting||lucySession)return;
+  const i=itemBy(cameraItem)||data.items.find(i=>tryOnPhoto(i));
+  if(!i||!tryOnPhoto(i)){toast('Add a garment photo to try it on.');return}
+  cameraItem=i.id;
+  lucyConnecting=true;
+  lucyStatus='connecting';
+  const attempt=++sessionAttempt;
+  render();
+  try{
+    const status=await fetch('/api/lucy/status').then(r=>r.json());
+    if(attempt!==sessionAttempt||page!=='tryon')return;
+    if(!status.ready){
+      lucyConnecting=false;
+      lucyStatus='idle';
+      render();
+      modal('Finish connecting Try-On.',`<p>Add the server’s <code>DECART_API_KEY</code> to connect Lucy.</p><p class="asset-note">Your camera stays off until the connection is ready.</p>${btn('Back to wardrobe','exit-camera','primary')}`);
+      return;
+    }
+    if(!window.isSecureContext||!navigator.mediaDevices?.getUserMedia)throw Error('Camera access needs HTTPS or localhost. Open the secure app address.');
+    const {createDecartClient,models}=await import('./vendor/lucy.js');
+    const m=models.realtime('lucy-vton-latest');
+    const fpsVal=typeof m.fps==='number'?m.fps:(m.fps?.ideal||m.fps?.max||30);
+    const videoConstraints={facingMode:'user',...(m.width?{width:{ideal:m.width}}:{}),...(m.height?{height:{ideal:m.height}}:{}),frameRate:{ideal:fpsVal}};
+    try{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:videoConstraints})}
+    catch{stream=await navigator.mediaDevices.getUserMedia({audio:false,video:{facingMode:'user'}})}
+    if(attempt!==sessionAttempt||page!=='tryon'){stopCamera();return}
+    render();
+    let initialState=undefined;
+    try{
+      const blob=await getBlob(i.renderKey||i.photoKey||i.sourceKey);
+      if(blob){
+        const mime=blob.type||'image/webp';
+        const ext=mime.includes('png')?'png':mime.includes('jpeg')?'jpg':'webp';
+        const file=new File([blob],`garment.${ext}`,{type:mime});
+        const kind={Tops:'top',Bottoms:'bottoms',Outerwear:'outerwear',Dresses:'dress',Shoes:'shoes',Accessories:'accessory'}[i.category]||'garment';
+        const description=[i.color,i.name].filter(Boolean).join(' ');
+        const promptText=i.category==='Accessories'?`Add the ${description} ${kind} from the reference image.`:`Substitute the current ${kind} with the ${description} from the reference image.`;
+        initialState={prompt:{text:promptText,enhance:false},image:file};
+      }
+    }catch(e){console.warn('Initial state prep warning:',e)}
+    const client=createDecartClient({apiKeyProvider:async()=>{
+      const res=await fetch('/api/lucy/token',{method:'POST',headers:{'Content-Type':'application/json'}});
+      if(!res.ok){
+        const errData=await res.json().catch(()=>({}));
+        throw Error(errData.error||'Lucy could not connect. Check the server connection.');
+      }
+      const token=await res.json();
+      return token.apiKey;
+    }});
+    const connected=await client.realtime.connect(stream,{
+      model:m,
+      mirror:'auto',
+      ...(initialState?{initialState}:{}),
+      onRemoteStream:s=>{
+        if(attempt!==sessionAttempt||page!=='tryon'){s.getTracks().forEach(t=>t.stop());return}
+        remoteStream=s;
+        const rv=document.querySelector('#remote-video');
+        if(rv){
+          rv.srcObject=s;
+          rv.muted=true;
+          attachRemoteVideoListeners(rv);
+          rv.play().catch(()=>{});
+        }
+        const vTrack=s.getVideoTracks()[0];
+        if(vTrack)vTrack.onunmute=()=>{if(rv)rv.play().catch(()=>{})};
+      },
+      onConnectionChange:s=>{
+        if(attempt!==sessionAttempt||page!=='tryon')return;
+        if(s==='connected'||s==='generating'){
+          lucyConnecting=false;
+          updateFittingRoomState();
+        }else if(s==='disconnected'){
+          stopCamera();
+          if(page==='tryon')render();
+        }
+      }
+    });
+    if(attempt!==sessionAttempt||page!=='tryon'){connected.disconnect();return}
+    lucySession=connected;
+    lucySession.on?.('error',err=>{
+      console.error('Lucy error:',err);
+      toast('Lucy’s connection was interrupted. Please reconnect.');
+      stopCamera();
+      if(page==='tryon')render();
+    });
+    if(!initialState){
+      try{await applyGarment()}catch(gErr){console.warn('Initial garment apply warning:',gErr)}
+    }
+    lucyConnecting=false;
+    updateFittingRoomState();
+  }catch(err){
+    if(attempt!==sessionAttempt)return;
+    stopCamera();
+    render();
+    toast(err.name==='NotAllowedError'?'Camera access was declined. Allow it in your browser settings to try again.':err.message||'Lucy could not connect. Please try again.');
+  }
+}
+async function applyGarment(){
+  if(!lucySession)return;
+  const i=itemBy(cameraItem)||data.items.find(i=>tryOnPhoto(i));
+  if(!i)return;
+  const blob=await getBlob(i.renderKey||i.photoKey||i.sourceKey);
+  if(!blob)return;
+  const mime=blob.type||'image/webp';
+  const ext=mime.includes('png')?'png':mime.includes('jpeg')?'jpg':'webp';
+  const file=new File([blob],`garment.${ext}`,{type:mime});
+  const kind={Tops:'top',Bottoms:'bottoms',Outerwear:'outerwear',Dresses:'dress',Shoes:'shoes',Accessories:'accessory'}[i.category]||'garment';
+  const description=[i.color,i.name].filter(Boolean).join(' ');
+  const promptText=i.category==='Accessories'?`Add the ${description} ${kind} from the reference image.`:`Substitute the current ${kind} with the ${description} from the reference image.`;
+  await lucySession.set({
+    prompt:promptText,
+    image:file,
+    enhance:false
+  });
+}
+async function capture(){
+  const remoteVideo=document.querySelector('#remote-video'),localVideo=document.querySelector('#camera-video');
+  const useRemote=remoteVideo?.classList.contains('active')&&remoteVideo.videoWidth>0;
+  const video=useRemote?remoteVideo:(localVideo?.videoWidth?localVideo:null);
+  if(!video){toast('Start Try-On before capturing a look.');return}
+  const c=document.createElement('canvas');
+  c.width=video.videoWidth;
+  c.height=video.videoHeight;
+  const ctx=c.getContext('2d');
+  if(!useRemote){
+    ctx.translate(c.width,0);
+    ctx.scale(-1,1);
+  }
+  ctx.drawImage(video,0,0);
+  const blob=await new Promise(r=>c.toBlob(r,'image/png'));
+  const url=URL.createObjectURL(blob);
+  modal('A look, made yours.',`<img src="${url}" alt="Your Lucy try-on capture" style="width:100%;max-height:55vh;object-fit:contain;border-radius:18px"><a class="primary" href="${url}" download="wardrobe-look.png" style="text-decoration:none">Save photo ${icon('download')}</a>`);
+}
 function download(blob,name){const url=URL.createObjectURL(blob),a=document.createElement('a');a.href=url;a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(url),3000)}
 async function exportData(){const assets={};for(const i of data.items)for(const k of [i.photoKey,i.modelKey,i.sourceKey,i.renderKey])if(k&&!assets[k]){const b=await getBlob(k);if(b)assets[k]=await new Promise(r=>{const reader=new FileReader();reader.onload=()=>r(reader.result);reader.readAsDataURL(b)})}download(new Blob([JSON.stringify({version:2,data,assets})],{type:'application/json'}),'wardrobe-backup.json');toast('Your backup is ready.')}
 async function restore(file){try{if(file.size>150*1024*1024)throw Error();const backup=JSON.parse(await file.text()),d=backup.data;if(backup.version!==2||!d||!Array.isArray(d.items)||!Array.isArray(d.outfits)||!Array.isArray(d.collections)||typeof d.profile?.name!=='string')throw Error();for(const i of d.items)if(typeof i.id!=='string'||typeof i.name!=='string'||!cats.includes(i.category))throw Error();for(const [key,val] of Object.entries(backup.assets||{})){if(typeof val!=='string'||!/^data:(image\/(webp|png|jpeg)|model\/gltf-binary|application\/octet-stream);base64,/.test(val))throw Error();const b=await fetch(val).then(r=>r.blob());await storeBlob(key,b)}data={...fresh(),...d};await preload();save();go('home');toast('Your wardrobe is restored.')}catch{toast('Choose a valid Wardrobe backup.')}}
-document.addEventListener('click',async e=>{const el=e.target.closest('button,[data-item],[data-collection],[data-outfit]');if(!el){if(e.target.classList.contains('scrim'))closeModal();if(!e.target.closest('.custom-select,.date-control'))closeDropdowns();return}if(el.dataset.option!==undefined){const c=el.closest('.custom-select');c.querySelector('input').value=el.dataset.option;c.querySelector('.select-trigger span').textContent=el.textContent.trim();c.querySelectorAll('[role=option]').forEach(o=>{o.setAttribute('aria-selected',o===el);o.querySelector('svg')?.remove()});el.insertAdjacentHTML('beforeend',icon('check'));closeDropdowns();c.querySelector('.select-trigger').focus();if(c.querySelector('input').name==='order'){data.order=el.dataset.option;if(data.order==='new')data.items.sort((a,b)=>b.createdAt-a.createdAt);else data.items.sort((a,b)=>a[data.order].localeCompare(b[data.order]));save();slide=0;closeModal();render()}return}if(el.dataset.dateChoice){const c=el.closest('.date-control');c.querySelector('input').value=el.dataset.dateChoice;c.querySelector('.select-trigger span').textContent=dateText(el.dataset.dateChoice);closeDropdowns();c.querySelector('.select-trigger').focus();if(c.querySelector('input').name==='order'){data.order=el.dataset.option;if(data.order==='new')data.items.sort((a,b)=>b.createdAt-a.createdAt);else data.items.sort((a,b)=>a[data.order].localeCompare(b[data.order]));save();slide=0;closeModal();render()}return}if(el.dataset.page){go(el.dataset.page);return}if(el.dataset.item){selected=el.dataset.item;slide=data.items.findIndex(i=>i.id===selected);go('viewer');return}if(el.dataset.outfit){selectedOutfit=el.dataset.outfit;go('look');return}if(el.dataset.collection){selectedCollection=el.dataset.collection;page='collections';location.hash=page;render();return}if(el.dataset.category){category=el.dataset.category;editingItem=false;slide=0;refreshCloset();return}if(el.dataset.slide!==undefined){slideDirection=Number(el.dataset.slide)<slide?'prev':'next';slide=Number(el.dataset.slide);render();return}if(el.dataset.day){activeDay=new Date(el.dataset.day+'T12:00:00');render();return}if(el.dataset.pack){const t=data.trips.find(t=>t.id===selectedTrip);t.packed=t.packed.includes(el.dataset.pack)?t.packed.filter(id=>id!==el.dataset.pack):[...t.packed,el.dataset.pack];save();render();return}if(el.dataset.cameraItem){cameraItem=el.dataset.cameraItem;render();try{await applyGarment()}catch{toast('The garment could not be applied. Try again.')}return}const a=el.dataset.action;if(!a)return;if(views[a]){go(a);return}switch(a){
+document.addEventListener('click',async e=>{const el=e.target.closest('button,[data-item],[data-collection],[data-outfit]');if(!el){if(e.target.classList.contains('scrim'))closeModal();if(!e.target.closest('.custom-select,.date-control'))closeDropdowns();return}if(el.dataset.option!==undefined){const c=el.closest('.custom-select');c.querySelector('input').value=el.dataset.option;c.querySelector('.select-trigger span').textContent=el.textContent.trim();c.querySelectorAll('[role=option]').forEach(o=>{o.setAttribute('aria-selected',o===el);o.querySelector('svg')?.remove()});el.insertAdjacentHTML('beforeend',icon('check'));closeDropdowns();c.querySelector('.select-trigger').focus();if(c.querySelector('input').name==='order'){data.order=el.dataset.option;if(data.order==='new')data.items.sort((a,b)=>b.createdAt-a.createdAt);else data.items.sort((a,b)=>a[data.order].localeCompare(b[data.order]));save();slide=0;closeModal();render()}return}if(el.dataset.dateChoice){const c=el.closest('.date-control');c.querySelector('input').value=el.dataset.dateChoice;c.querySelector('.select-trigger span').textContent=dateText(el.dataset.dateChoice);closeDropdowns();c.querySelector('.select-trigger').focus();if(c.querySelector('input').name==='order'){data.order=el.dataset.option;if(data.order==='new')data.items.sort((a,b)=>b.createdAt-a.createdAt);else data.items.sort((a,b)=>a[data.order].localeCompare(b[data.order]));save();slide=0;closeModal();render()}return}if(el.dataset.page){go(el.dataset.page);return}if(el.dataset.item){selected=el.dataset.item;slide=data.items.findIndex(i=>i.id===selected);go('viewer');return}if(el.dataset.outfit){selectedOutfit=el.dataset.outfit;go('look');return}if(el.dataset.collection){selectedCollection=el.dataset.collection;page='collections';location.hash=page;render();return}if(el.dataset.category){category=el.dataset.category;editingItem=false;slide=0;refreshCloset();return}if(el.dataset.slide!==undefined){slideDirection=Number(el.dataset.slide)<slide?'prev':'next';slide=Number(el.dataset.slide);render();return}if(el.dataset.day){activeDay=new Date(el.dataset.day+'T12:00:00');render();return}if(el.dataset.pack){const t=data.trips.find(t=>t.id===selectedTrip);t.packed=t.packed.includes(el.dataset.pack)?t.packed.filter(id=>id!==el.dataset.pack):[...t.packed,el.dataset.pack];save();render();return}if(el.dataset.cameraItem){selectFittingRoomGarment(el.dataset.cameraItem);try{await applyGarment()}catch{toast('The garment could not be applied. Try again.')}return}const a=el.dataset.action;if(!a)return;if(views[a]){go(a);return}switch(a){
 case 'retry-render':closeModal();startRender(picked());break;
 case 'close-modal':closeModal();break;
 case 'add-menu':addMenu();break;
@@ -139,7 +347,12 @@ document.addEventListener('submit',async e=>{e.preventDefault();const form=e.tar
 document.addEventListener('keydown',e=>{if(e.key==='Escape'){const open=document.querySelector('.select-options:not([hidden]),.date-options:not([hidden])');if(open)closeDropdowns();else closeModal()}if(e.key==='Tab'&&overlay.firstChild){const nodes=[...overlay.querySelectorAll('button,a,input:not([type=hidden]):not([type=file]),textarea')].filter(x=>!x.disabled&&x.getClientRects().length);if(e.shiftKey&&document.activeElement===nodes[0]){e.preventDefault();nodes.at(-1)?.focus()}else if(!e.shiftKey&&document.activeElement===nodes.at(-1)){e.preventDefault();nodes[0]?.focus()}}if(e.target.closest('.select-options')&&['ArrowDown','ArrowUp'].includes(e.key)){e.preventDefault();const list=[...e.target.closest('.select-options').querySelectorAll('button')],n=list.indexOf(e.target);list[(n+(e.key==='ArrowDown'?1:-1)+list.length)%list.length].focus()}if(!overlay.firstChild&&!e.target.matches('input,textarea,button')&&['closet','viewer'].includes(page)){if(e.key==='ArrowLeft')moveSlide(-1);if(e.key==='ArrowRight')moveSlide(1)}});
 window.addEventListener('hashchange',()=>{const p=location.hash.slice(1)||'home';if(p!==page)go(p)});window.addEventListener('pagehide',()=>{stopCamera();stopTilt?.()});
 
-function lucyView(){const photos=data.items.filter(i=>tryOnPhoto(i));if(!photos.some(i=>i.id===cameraItem))cameraItem=photos[0]?.id||'';const live=lucyStatus==='live';return heading('The Fitting Room.','A new look. Still you.',round('close','exit-camera','Leave fitting room'))+`<div class="camera-layout"><div class="camera-stage ${live?'':'camera-off'}">${remoteStream||stream?'<video id="camera-video" autoplay muted playsinline></video>':`<div class="empty-state"><div class="pulse-orb ${lucyConnecting?'loading-orb':''}">${icon('camera')}</div><h2>${lucyConnecting?'Finding your connection.':'See it on you.'}</h2><p>${lucyConnecting?'Connecting to Lucy…':photos.length?'Your camera. Your chosen piece.':'Add a piece to begin.'}</p></div>`}${stream?`<div class="camera-controls"><span class="camera-label">${live?'LUCY · LIVE':'CONNECTING'}</span>${round('close','stop-lucy','End Try-On')}</div>`:''}${remoteStream?'<button class="shutter" data-action="capture" aria-label="Capture your look"></button>':''}</div><aside class="adjust-panel glass"><div class="lucy-status ${live?'live':''}"><i></i>${live?'Connected':lucyConnecting?'Connecting':'POWERED BY LUCY'}</div>${photos.length?`<div class="camera-pieces" aria-label="Choose a garment">${photos.map(i=>`<button class="${i.id===cameraItem?'active':''}" data-camera-item="${i.id}" aria-label="Try ${esc(i.name)}" aria-pressed="${i.id===cameraItem}"><img src="${tryOnPhoto(i)}" alt="${esc(i.name)}"></button>`).join('')}</div><p class="camera-piece-name">${esc(itemBy(cameraItem)?.name||'Choose a garment')}</p>`:''}${!lucySession?(photos.length?btn(lucyConnecting?'Connecting…':'Start Try-On','start-camera','primary lucy-start','camera',lucyConnecting?'disabled':''):btn('Add a piece','upload','primary lucy-start','plus')):''}${!lucySession&&photos.length?'<p class="lucy-disclosure">Starting shares your camera and selected piece with Decart.</p>':''}</aside></div>`}
+function lucyView(){
+  const photos=data.items.filter(i=>tryOnPhoto(i));
+  if(!photos.some(i=>i.id===cameraItem))cameraItem=photos[0]?.id||'';
+  const live=lucyStatus==='live';
+  return heading('The Fitting Room.','A new look. Still you.',round('close','exit-camera','Leave fitting room'))+`<div class="camera-layout"><div class="camera-stage ${stream?'':'camera-off'}">${stream?`<video id="camera-video" class="camera-feed camera-local" autoplay muted playsinline></video><video id="remote-video" class="camera-feed camera-remote ${live?'active':''}" autoplay muted playsinline></video><div class="camera-controls"><span class="camera-label ${live?'live':'connecting'}"><i></i>${live?'LUCY · LIVE':lucyConnecting?'CONNECTING…':'STYLING…'}</span>${round('close','stop-lucy','End Try-On')}</div><button class="shutter" data-action="capture" aria-label="Capture your look"></button>`:`<div class="empty-state"><div class="pulse-orb ${lucyConnecting?'loading-orb':''}">${icon('camera')}</div><h2>${lucyConnecting?'Finding your connection.':'See it on you.'}</h2><p>${lucyConnecting?'Connecting to Lucy…':photos.length?'Your camera. Your chosen piece.':'Add a piece to begin.'}</p></div>`}</div><aside class="adjust-panel glass"><div class="lucy-status ${live?'live':''}"><i></i>${live?'Connected':lucyConnecting?'Connecting':'POWERED BY LUCY'}</div>${photos.length?`<div class="camera-pieces" aria-label="Choose a garment">${photos.map(i=>`<button class="${i.id===cameraItem?'active':''}" data-camera-item="${i.id}" aria-label="Try ${esc(i.name)}" aria-pressed="${i.id===cameraItem}"><img src="${tryOnPhoto(i)}" alt="${esc(i.name)}"></button>`).join('')}</div><p class="camera-piece-name">${esc(itemBy(cameraItem)?.name||'Choose a garment')}</p>`:''}${!lucySession?(photos.length?btn(lucyConnecting?'Connecting…':'Start Try-On','start-camera','primary lucy-start','camera',lucyConnecting?'disabled':''):btn('Add a piece','upload','primary lucy-start','plus')):''}${!lucySession&&photos.length?'<p class="lucy-disclosure">Starting shares your camera and selected piece with Decart.</p>':''}</aside></div>`
+}
 views.tryon=lucyView;views.permission=lucyView;
 
 

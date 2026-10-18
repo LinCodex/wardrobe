@@ -1,4 +1,14 @@
-.camera-stage.camera-off{background:radial-gradient(ellipse at 50% 25%,#fff,#e8f0fc 90%);border:1px solid #fff;box-shadow:inset 0 1px white,0 12px 40px #6a87ad10}
+.camera-stage{background:radial-gradient(ellipse at 50% 25%,#fff,#e8f0fc 90%);border:1px solid #fff;box-shadow:inset 0 1px white,0 12px 40px #6a87ad10;position:relative;overflow:hidden}
+.camera-stage.camera-off{background:radial-gradient(ellipse at 50% 25%,#fff,#e8f0fc 90%)}
+.camera-stage video{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;border-radius:25px}
+.camera-stage .camera-local{transform:scaleX(-1)!important;z-index:1}
+.camera-stage .camera-remote{transform:none!important;z-index:2;opacity:0;transition:opacity .4s ease-out}
+.camera-stage .camera-remote.active{opacity:1}
+.camera-stage .camera-controls,.camera-stage .shutter{z-index:10}
+.camera-label.live{background:#ffffffea;color:#2463eb;font-weight:600;box-shadow:0 4px 15px rgba(36,99,235,0.15)}
+.camera-label.live i,.camera-label.connecting i{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:5px;vertical-align:middle}
+.camera-label.live i{background:#22c55e;box-shadow:0 0 8px #22c55e}
+.camera-label.connecting i{background:#3b82f6;animation:pulse 1s infinite alternate}
 .camera-stage .empty-state{height:100%;min-height:0;justify-content:center}
 .camera-piece-name{margin-top:8px;font-size:11px!important;white-space:nowrap;text-overflow:ellipsis;overflow:hidden}
 .camera-pieces{flex-wrap:nowrap;overflow-x:auto;overscroll-behavior-x:contain;padding:3px;margin:17px -3px 8px}
